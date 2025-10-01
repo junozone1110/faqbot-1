@@ -1,0 +1,27 @@
+# Google Drive API
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+
+# LangChain and Google AI
+langchain-google-genai
+langchain-community
+langchain-text-splitters
+
+# PDF processing
+pymupdf
+
+# Vector database
+chromadb
+
+# Environment variables
+python-dotenv
+
+
+# OpenAI (optional - for better embeddings)
+openai
+langchain-openai
+
+# Slack integration
+slack-sdk
+slack-bolt
