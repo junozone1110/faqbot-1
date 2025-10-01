@@ -25,3 +25,6 @@ langchain-openai
 # Slack integration
 slack-sdk
 slack-bolt
+
+# Hybrid Search (BM25)
+rank-bm25
