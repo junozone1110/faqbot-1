@@ -57,36 +57,69 @@ def authenticate_google_drive():
     return build('drive', 'v3', credentials=creds)
 
 
+def get_all_pdfs_recursive(service, folder_id: str, path_prefix: str = ""):
+    """指定したGoogle Driveフォルダから再帰的にすべてのPDFを取得します"""
+    all_pdfs = []
+    
+    # フォルダ内のすべてのファイルとフォルダを取得
+    query = f"'{folder_id}' in parents and trashed=false"
+    results = service.files().list(
+        q=query,
+        fields="files(id, name, mimeType)"
+    ).execute()
+    
+    items = results.get('files', [])
+    
+    for item in items:
+        item_name = item['name']
+        item_id = item['id']
+        mime_type = item['mimeType']
+        
+        # PDFファイルの場合
+        if mime_type == 'application/pdf':
+            full_path = f"{path_prefix}/{item_name}" if path_prefix else item_name
+            all_pdfs.append({
+                'id': item_id,
+                'name': item_name,
+                'path': full_path
+            })
+        
+        # フォルダの場合、再帰的に探索
+        elif mime_type == 'application/vnd.google-apps.folder':
+            folder_path = f"{path_prefix}/{item_name}" if path_prefix else item_name
+            print(f"📁 フォルダを探索中: {folder_path}")
+            sub_pdfs = get_all_pdfs_recursive(service, item_id, folder_path)
+            all_pdfs.extend(sub_pdfs)
+    
+    return all_pdfs
+
+
 def download_pdfs_from_drive(service, folder_id: str, download_dir: Path):
-    """指定したGoogle DriveフォルダからすべてのPDFをダウンロードします"""
+    """指定したGoogle DriveフォルダからすべてのPDFをダウンロードします（再帰的）"""
     # ダウンロード先ディレクトリを作成
     download_dir.mkdir(exist_ok=True)
     
-    # フォルダ内のPDFファイルを検索
-    query = f"'{folder_id}' in parents and mimeType='application/pdf' and trashed=false"
-    results = service.files().list(
-        q=query,
-        fields="files(id, name)"
-    ).execute()
+    # 再帰的にPDFを取得
+    print("フォルダ構造を探索中...")
+    pdf_files = get_all_pdfs_recursive(service, folder_id)
     
-    files = results.get('files', [])
-    
-    if not files:
+    if not pdf_files:
         print("PDFファイルが見つかりませんでした。")
         return []
     
-    print(f"{len(files)}個のPDFファイルが見つかりました。")
+    print(f"\n合計{len(pdf_files)}個のPDFファイルが見つかりました。")
     
     downloaded_files = []
-    for file in files:
-        file_id = file['id']
-        file_name = file['name']
-        file_path = download_dir / file_name
+    for pdf_info in pdf_files:
+        file_id = pdf_info['id']
+        file_name = pdf_info['name']
+        full_path_in_drive = pdf_info['path']
+        local_file_path = download_dir / file_name
         
-        print(f"ダウンロード中: {file_name}")
+        print(f"ダウンロード中: {full_path_in_drive}")
         
         request = service.files().get_media(fileId=file_id)
-        with open(file_path, 'wb') as f:
+        with open(local_file_path, 'wb') as f:
             downloader = MediaIoBaseDownload(f, request)
             done = False
             while not done:
@@ -94,7 +127,7 @@ def download_pdfs_from_drive(service, folder_id: str, download_dir: Path):
                 if status:
                     print(f"  進捗: {int(status.progress() * 100)}%")
         
-        downloaded_files.append(file_path)
+        downloaded_files.append(local_file_path)
     
     return downloaded_files
 
@@ -137,26 +170,46 @@ def create_chunks(texts: List[dict], chunk_size: int = 1500, chunk_overlap: int 
 
 
 def save_to_chroma(chunks: List[dict], embedding_model):
-    """チャンクをベクトル化してChromaDBに保存します"""
-    print(f"\n{len(chunks)}個のチャンクをベクトルDBに保存中...")
+    """チャンクをベクトル化してChromaDBに保存します（バッチ処理）"""
+    total_chunks = len(chunks)
+    print(f"\n使用モデル: {embedding_model.model} (高精度)")
     
     # 既存のDBがあれば削除
     if os.path.exists(CHROMA_DB_DIR):
         shutil.rmtree(CHROMA_DB_DIR)
     
-    # テキストとメタデータを分離
-    texts = [chunk['text'] for chunk in chunks]
-    metadatas = [{'source': chunk['source'], 'chunk_id': chunk['chunk_id']} for chunk in chunks]
+    # バッチサイズ（OpenAIのトークン制限に対応）
+    BATCH_SIZE = 100  # 100チャンクずつ処理
     
-    # ChromaDBに保存
-    vectordb = Chroma.from_texts(
-        texts=texts,
-        embedding=embedding_model,
-        metadatas=metadatas,
-        persist_directory=CHROMA_DB_DIR
-    )
+    print(f"\n{total_chunks}個のチャンクを{BATCH_SIZE}個ずつバッチ処理で保存中...")
     
-    print(f"ベクトルDBの保存完了: {CHROMA_DB_DIR}")
+    vectordb = None
+    for i in range(0, total_chunks, BATCH_SIZE):
+        batch = chunks[i:i+BATCH_SIZE]
+        batch_texts = [chunk['text'] for chunk in batch]
+        batch_metadatas = [{'source': chunk['source'], 'chunk_id': chunk['chunk_id']} for chunk in batch]
+        
+        batch_num = (i // BATCH_SIZE) + 1
+        total_batches = (total_chunks + BATCH_SIZE - 1) // BATCH_SIZE
+        print(f"  バッチ {batch_num}/{total_batches} ({len(batch)}チャンク) を処理中...")
+        
+        if vectordb is None:
+            # 最初のバッチでDBを作成
+            vectordb = Chroma.from_texts(
+                texts=batch_texts,
+                embedding=embedding_model,
+                metadatas=batch_metadatas,
+                persist_directory=CHROMA_DB_DIR
+            )
+        else:
+            # 2回目以降は既存のDBに追加
+            vectordb.add_texts(
+                texts=batch_texts,
+                metadatas=batch_metadatas
+            )
+    
+    print(f"\n✓ ベクトルDBの保存完了: {CHROMA_DB_DIR}")
+    print(f"  合計チャンク数: {total_chunks}")
     return vectordb
 
 
