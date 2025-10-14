@@ -29,6 +29,10 @@ chroma_db_openai/
 *.swo
 *~
 
+# Logs
+*.log
+*.out
+
 # OS
 .DS_Store
 Thumbs.db

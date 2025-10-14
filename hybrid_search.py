@@ -31,20 +31,26 @@ class HybridSearchRetriever:
         self.bm25_weight = 1.0 - alpha  # BM25の重み
         
         # ベクトルDBから全ドキュメントを取得
+        print("     - 全ドキュメントを取得中...")
         self.all_data = vectordb.get()
         self.documents = self.all_data['documents']
         self.metadatas = self.all_data['metadatas']
+        print(f"     - 取得完了: {len(self.documents)}件のドキュメント")
         
         # BM25用にトークン化（簡易的に文字単位で分割）
+        print("     - ドキュメントをトークン化中...")
         self.tokenized_corpus = [self._tokenize(doc) for doc in self.documents]
+        print("     - トークン化完了")
         
         # BM25インデックスを構築
+        print("     - BM25インデックスを構築中...")
         self.bm25 = BM25Okapi(self.tokenized_corpus)
+        print("     - BM25インデックス構築完了")
         
-        print(f"ハイブリッド検索の初期化完了:")
-        print(f"  - ドキュメント数: {len(self.documents)}")
-        print(f"  - ベクトル検索の重み: {self.alpha:.2f}")
-        print(f"  - BM25の重み: {self.bm25_weight:.2f}")
+        print(f"     ✓ ハイブリッド検索の初期化完了:")
+        print(f"       - ドキュメント数: {len(self.documents)}")
+        print(f"       - ベクトル検索の重み: {self.alpha:.2f}")
+        print(f"       - BM25の重み: {self.bm25_weight:.2f}")
     
     def _tokenize(self, text: str) -> List[str]:
         """
