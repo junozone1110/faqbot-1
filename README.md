@@ -3,6 +3,33 @@
 Google Drive上のPDFファイルから法律FAQボットを作成するアプリケーションです。
 RAG（Retrieval-Augmented Generation）とハイブリッド検索（BM25 + ベクトル検索）を使用して、PDFの内容に基づいて質問に回答します。
 
+## 📁 プロジェクト構成
+
+このプロジェクトは保守性と可読性を重視して、モジュール化されています。
+
+```
+09_faq-bot/
+├── slack_bot_hybrid.py      # メインアプリケーション（648行）
+├── config.py                 # 設定の一元管理（112行）
+├── utils.py                  # 共通ユーティリティ関数（189行）
+├── hybrid_search.py          # ハイブリッド検索実装（159行）
+├── prompts/                  # プロンプトテンプレート
+│   ├── clarity_check.txt     # 質問具体性チェック用
+│   ├── clarity_recheck.txt   # 追加情報での再評価用
+│   └── answer_generation.txt # 回答生成用
+├── Dockerfile                # Docker設定
+├── docker-compose.yml        # Docker Compose設定
+└── requirements.txt          # Python依存関係
+```
+
+### モジュール構成の利点
+
+- **保守性**: 変更箇所が明確で、影響範囲を限定できる
+- **可読性**: 各ファイルの責務が明確で理解しやすい
+- **テスト**: 各モジュールを独立してテスト可能
+- **再利用**: 共通処理を複数箇所で利用可能
+- **プロンプト管理**: テキストファイルで直接編集可能
+
 ## 🎯 主な機能
 
 ### 検索・回答機能
@@ -403,25 +430,40 @@ nohup python -u slack_bot_hybrid.py > bot.log 2>&1 &
 
 ### 検索パラメータの調整
 
-`slack_bot_hybrid.py`で以下を変更:
+**`config.py`で以下を変更**（推奨）:
 
 ```python
-TOP_K_RESULTS = 5  # 検索結果の上位件数
-
-# ハイブリッド検索の重み
-hybrid_retriever = HybridSearchRetriever(
-    vectordb=vectordb,
-    alpha=0.5  # ベクトル検索の重み（0.0〜1.0）
-)
+TOP_K_RESULTS = 10  # 検索結果の上位件数
+SEARCH_MULTIPLIER = 3  # フィルタリング前の取得倍率
 ```
 
 ### プロンプトのカスタマイズ
 
-`PROMPT_TEMPLATE`や`CLARITY_CHECK_PROMPT`を編集して、回答スタイルや判定基準を調整できます。
+**`prompts/`ディレクトリ内のテキストファイルを編集**（推奨）:
+
+- `prompts/clarity_check.txt`: 質問の具体性チェック基準
+- `prompts/clarity_recheck.txt`: 追加情報での再評価基準
+- `prompts/answer_generation.txt`: 回答生成のスタイル
+
+**メリット**:
+- コードの再起動不要でプロンプトを調整可能
+- バージョン管理しやすい
+- チーム間での共有が容易
+
+### LLMモデルの変更
+
+**`config.py`で以下を変更**:
+
+```python
+GENERATION_MODEL = "gemini-2.5-flash"  # 回答生成モデル
+EMBEDDING_MODEL = "text-embedding-3-large"  # 埋め込みモデル
+CLARITY_CHECK_TEMPERATURE = 0.1  # 具体性チェックの温度
+ANSWER_GENERATION_TEMPERATURE = 0.2  # 回答生成の温度
+```
 
 ### 法律の追加
 
-`LAW_TYPES`と`LAW_SOURCE_MAPPING`にエントリを追加:
+**`config.py`の`LAW_TYPES`と`LAW_SOURCE_MAPPING`にエントリを追加**:
 
 ```python
 LAW_TYPES = {
@@ -435,7 +477,83 @@ LAW_SOURCE_MAPPING = {
 }
 ```
 
-ボタンも`create_law_selection_blocks()`に追加してください。
+**`slack_bot_hybrid.py`の`create_law_selection_blocks()`にボタンを追加**:
+
+```python
+{
+    "type": "button",
+    "text": {"type": "plain_text", "text": "🆕 新しい法律"},
+    "action_id": "select_law_new_law",
+    "value": f"new_law|||{question}"
+}
+```
+
+## 🛠️ 開発者向け情報
+
+### コードの構造
+
+本プロジェクトはチーム開発を想定して、モジュール化されています。
+
+#### **config.py**
+- すべての設定値を一元管理
+- 環境変数の読み込み
+- 法律マッピング、検索パラメータ、LLM設定
+
+#### **utils.py**
+- プロンプト読み込み関数（`get_*_prompt()`）
+- 参照元整形（`format_references()`）
+- メッセージ整形（`create_*_message()`）
+- 共通処理の関数化
+
+#### **prompts/**
+- プロンプトテンプレートをテキストファイルで管理
+- コード変更なしで調整可能
+- バージョン管理が容易
+
+#### **slack_bot_hybrid.py**
+- メインアプリケーションロジック（648行）
+- セクション区切りで可読性向上:
+  - データベース初期化
+  - 質問の具体性チェック
+  - 回答生成
+  - Slack UIコンポーネント
+  - Slackイベントハンドラー
+
+### 変更時のガイドライン
+
+#### プロンプト変更
+1. `prompts/*.txt`を編集
+2. Dockerコンテナを再起動（`docker-compose restart`）
+3. 変更を確認
+
+#### 設定変更
+1. `config.py`を編集
+2. アプリケーションを再起動
+3. 動作確認
+
+#### 機能追加
+1. `utils.py`に共通関数を追加
+2. `slack_bot_hybrid.py`で利用
+3. 型ヒントとdocstringを必ず追加
+4. テストを実施
+
+### リファクタリング履歴
+
+**フェーズ1**: プロンプト、設定、ユーティリティの分離
+- 新規ファイル: `config.py`, `utils.py`, `prompts/`
+- プロンプトのテキストファイル化
+- 設定値の一元管理
+
+**フェーズ2**: slack_bot_hybrid.pyのリファクタリング
+- コード削減: 855行 → 648行（24%減）
+- 外部モジュール参照への変更
+- セクション区切り追加
+- 型ヒント追加
+
+**今後のフェーズ**:
+- 長い関数の分割（150行以上）
+- ユニットテストの追加
+- ドキュメント強化
 
 ## 📝 ライセンス
 
