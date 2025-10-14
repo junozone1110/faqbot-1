@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  faq-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: faq-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # ベクトルDBを永続化
+      - ./chroma_db_openai:/app/chroma_db_openai
+      # Google認証情報をマウント
+      - ./credentials.json:/app/credentials.json:ro
+      - ./token.json:/app/token.json
+      # ログを永続化
+      - ./logs:/app/logs
+    environment:
+      # Pythonの出力バッファリングを無効化
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; exit(0 if os.path.exists('/tmp/bot_ready') else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # メモリ制限（必要に応じて調整）
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  # データベース準備用のサービス（初回のみ実行）
+  prepare-db:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: faq-bot-prepare-db
+    env_file:
+      - .env
+    volumes:
+      - ./chroma_db_openai:/app/chroma_db_openai
+      - ./credentials.json:/app/credentials.json:ro
+      - ./token.json:/app/token.json
+      - ./logs:/app/logs
+    command: python -u prepare_database_openai.py
+    profiles:
+      - setup
+

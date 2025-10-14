@@ -120,7 +120,84 @@ SLACK_APP_TOKEN="xapp-your-app-token"
 - **Slack トークン**: 
   - Slack App設定ページから取得（上記参照）
 
-## 📖 使い方
+## 🐳 Docker での実行（推奨）
+
+Dockerを使用すると、環境構築が簡単で、どこでも同じ環境で動作します。
+
+### 前提条件
+
+- Docker
+- Docker Compose
+
+### セットアップと実行
+
+1. **環境変数ファイルを作成**
+
+```bash
+cp .env.example .env
+# .envファイルを編集して必要な情報を入力
+```
+
+2. **認証情報を配置**
+
+```bash
+# Google Cloud Platformから取得したcredentials.jsonを配置
+cp /path/to/your/credentials.json ./credentials.json
+```
+
+3. **ベクトルDBを準備（初回のみ）**
+
+```bash
+docker-compose --profile setup run --rm prepare-db
+```
+
+初回実行時、ブラウザでGoogle認証が求められます。認証後、`token.json`が自動生成されます。
+
+4. **Botを起動**
+
+```bash
+docker-compose up -d
+```
+
+バックグラウンドで起動します。
+
+5. **ログを確認**
+
+```bash
+docker-compose logs -f
+```
+
+6. **停止**
+
+```bash
+docker-compose down
+```
+
+### Docker環境のトラブルシューティング
+
+**コンテナの状態確認**
+```bash
+docker-compose ps
+```
+
+**コンテナに入る**
+```bash
+docker-compose exec faq-bot bash
+```
+
+**ログの確認**
+```bash
+docker-compose logs faq-bot --tail=100
+```
+
+**完全にクリーンアップして再ビルド**
+```bash
+docker-compose down -v
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+## 📖 使い方（ローカル実行）
 
 ### ステップ1: データベースの準備
 
@@ -221,6 +298,9 @@ python ask_question_hybrid.py
 ├── credentials.json               # Google API認証情報（要配置）
 ├── token.json                     # 認証トークン（自動生成）
 ├── chroma_db_openai/              # ベクトルDB（自動生成）
+├── Dockerfile                     # Dockerイメージ定義
+├── docker-compose.yml             # Docker Compose設定
+├── .dockerignore                  # Docker除外ファイル
 ├── SLACK_SETUP.md                 # Slack App設定ガイド
 ├── GITHUB_SETUP.md                # GitHub連携ガイド
 └── README.md                      # このファイル

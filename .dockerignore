@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ログファイル
+*.log
+*.out
+logs/
+
+# ベクトルDB（マウントするため）
+chroma_db/
+chroma_db_openai/
+
+# 認証情報（マウントするため）
+credentials.json
+token.json
+
+# 環境変数（.env.exampleは含める）
+.env
+
+# ドキュメント
+*.md
+GITHUB_SETUP.md
+SLACK_SETUP.md
+
+# Docker関連
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# テスト・一時ファイル
+test_*.py
+temp_*/
+

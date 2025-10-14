@@ -842,6 +842,13 @@ if __name__ == "__main__":
     print("\n終了するには Ctrl+C を押してください")
     print("="*60 + "\n")
     
+    # ヘルスチェック用のファイルを作成（Docker用）
+    try:
+        with open('/tmp/bot_ready', 'w') as f:
+            f.write('ready')
+    except Exception:
+        pass  # ローカル環境では/tmpが使えない場合もあるので無視
+    
     # Socket Modeで起動
     handler = SocketModeHandler(app, SLACK_APP_TOKEN)
     handler.start()
