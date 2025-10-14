@@ -29,7 +29,7 @@ SLACK_APP_TOKEN = os.getenv("SLACK_APP_TOKEN")
 
 # FAQ Bot設定
 CHROMA_DB_DIR = "./chroma_db_openai"
-TOP_K_RESULTS = 5  # 検索結果の上位件数
+TOP_K_RESULTS = 10  # 検索結果の上位件数（適用除外規定なども確実に拾うため増加）
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
@@ -182,8 +182,11 @@ PROMPT_TEMPLATE = """
 あなたは法律やFAQに関する質問に回答する親切なアシスタントです。
 今回の質問は「{law_type}」に関する質問です。
 
-**重要**: 回答は必ず「{law_type}」の観点から行ってください。
-他の法律の情報が含まれている場合は、「{law_type}」に関連する部分のみに焦点を当ててください。
+**重要な指示**:
+1. 回答は必ず「{law_type}」の観点から行ってください
+2. 他の法律の情報が含まれている場合は、「{law_type}」に関連する部分のみに焦点を当ててください
+3. **適用除外規定を必ず確認してください**: 法律の適用の有無を判断する質問の場合、必ずコンテキスト情報の中から「適用除外」に関する規定を探し、それを最優先で考慮してください
+4. 主体（発行者）が特定の団体や組織である場合、その主体が適用除外に該当しないか必ず確認してください
 
 以下のコンテキスト情報を参考にして、質問に日本語で分かりやすく回答してください。
 
@@ -454,8 +457,8 @@ def generate_answer_directly(query: str, hybrid_retriever, law_type: str = "景�
     
     print(f"  [直接回答生成] 質問: {query}")
     
-    # 1. 検索クエリを拡張（法律名を追加して精度向上）
-    enhanced_query = f"{law_type} {query}"
+    # 1. 検索クエリを拡張（法律名と適用除外キーワードを追加して精度向上）
+    enhanced_query = f"{law_type} {query} 適用除外"
     
     # 2. ハイブリッド検索を実行（多めに取得してフィルタリング）
     docs_and_scores = hybrid_retriever.search(enhanced_query, k=TOP_K_RESULTS * 3)
@@ -553,8 +556,8 @@ def generate_answer(query: str, hybrid_retriever, law_type: str = "景表法"):
     # ステップ3: 質問が具体的な場合は回答を生成
     print(f"  [判定] 質問が具体的 - 回答を生成します")
     
-    # 1. 検索クエリを拡張（法律名を追加して精度向上）
-    enhanced_query = f"{law_type} {query}"
+    # 1. 検索クエリを拡張（法律名と適用除外キーワードを追加して精度向上）
+    enhanced_query = f"{law_type} {query} 適用除外"
     
     # 2. ハイブリッド検索を実行（多めに取得してフィルタリング）
     docs_and_scores = hybrid_retriever.search(enhanced_query, k=TOP_K_RESULTS * 3)
